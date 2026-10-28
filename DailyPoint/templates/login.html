@@ -1,0 +1,20 @@
+<!DOCTYPE html><html><head><title>DailyPoint - Login</title>
+<link rel="icon" href="/static/icons8-to-do-list-24.png"><link rel="stylesheet" href="/static/style.css"></head>
+<body class="auth"><div class="card">
+  <div class="brand"><img src="/static/icons8-to-do-list-24.png" alt=""><h1>DailyPoint</h1></div>
+  <h3 class="tagline">Small steps every day lead to big achievements tomorrow.</h3>
+  <h2>Login</h2>
+  <div class="field"><label>Username or Email</label><input id="who"></div>
+  <div class="field"><label>Password</label><input id="pw" type="password"></div>
+  <button id="go" class="primary">Login</button>
+  <p id="msg" class="err"></p>
+  <p class="switch">No account? <a href="/register">Create account</a></p>
+</div>
+<script src="/static/common.js"></script>
+<script>
+$("go").onclick = async () => {
+  const r = await api("/api/login", { who: $("who").value, password: $("pw").value });
+  if (r.ok) location = "/app"; else $("msg").textContent = r.error;
+};
+document.onkeydown = (e) => { if (e.key === "Enter") $("go").click(); };
+</script></body></html>

@@ -1,0 +1,24 @@
+<!DOCTYPE html><html><head><title>DailyPoint - Create account</title>
+<link rel="icon" href="/static/icons8-to-do-list-24.png"><link rel="stylesheet" href="/static/style.css"></head>
+<body class="auth"><div class="card">
+  <div class="brand"><img src="/static/icons8-to-do-list-24.png" alt=""><h1>DailyPoint</h1></div>
+  <h3 class="tagline">Small steps every day lead to big achievements tomorrow.</h3>
+  <h2>Create account</h2>
+  <div class="field"><label>User name</label><input id="username"></div>
+  <div class="field"><label>Email</label><input id="email" type="email"></div>
+  <div class="field"><label>Gender</label>
+    <select id="gender"><option value="male">Male</option><option value="female">Female</option><option value="others">Others</option></select></div>
+  <div class="field"><label>Password</label><input id="pw" type="password"></div>
+  <div class="field"><label>Confirm password</label><input id="cf" type="password"></div>
+  <button id="go" class="primary">Done</button>
+  <p id="msg" class="err"></p>
+  <p class="switch">Already have an account? <a href="/login">Login</a></p>
+</div>
+<script src="/static/common.js"></script>
+<script>
+$("go").onclick = async () => {
+  const r = await api("/api/register", { username: $("username").value, email: $("email").value,
+    gender: $("gender").value, password: $("pw").value, confirm: $("cf").value });
+  if (r.ok) location = "/app"; else $("msg").textContent = r.error;
+};
+</script></body></html>

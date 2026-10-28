@@ -1,0 +1,24 @@
+<!DOCTYPE html><html><head><title>DailyPoint - Profile</title>
+<link rel="icon" href="/static/icons8-to-do-list-24.png"><link rel="stylesheet" href="/static/style.css"></head>
+<body><div class="page">
+  <p><a href="/app">&larr; Back</a></p>
+  <div class="brand"><img id="av" class="avatar" src="/static/icons8-profile-50.png" alt=""><h1 id="u"></h1></div>
+  <p id="e"></p>
+  <h2>Monthly history</h2>
+  <table><thead><tr><th>Month</th><th>List</th><th>Completed days</th><th>Full month?</th></tr></thead><tbody id="rows"></tbody></table>
+</div>
+<script src="/static/common.js"></script>
+<script>
+(async () => {
+  const r = await api("/api/profile");
+  $("u").textContent = r.username; $("e").textContent = r.email;
+  $("av").src = r.gender === "female" ? "/static/icons8-profile-50-female.png" : "/static/icons8-profile-50.png";
+  r.history.forEach(h => {
+    const tr = document.createElement("tr");
+    [h.month, h.list, h.done + " / " + h.days, h.full ? "Yes" : "No"].forEach(t => {
+      const td = document.createElement("td"); td.textContent = t; tr.appendChild(td);
+    });
+    $("rows").appendChild(tr);
+  });
+})();
+</script></body></html>

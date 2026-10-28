@@ -1,0 +1,203 @@
+<!DOCTYPE html><html><head><title>DailyPoint</title>
+<link rel="icon" href="/static/icons8-to-do-list-24.png"><link rel="stylesheet" href="/static/style.css">
+<style>
+body.app { display: flex; height: 100vh; overflow: hidden }
+#side { width: 260px; background: #fff; display: flex; flex-direction: column; padding: 10px; gap: 8px }
+#side .new, #side #doneBtn { width: 100% }
+#lists { flex: 1; overflow: auto }
+#drag { width: 5px; cursor: col-resize; background: #e3e6ea; transition: background .15s } #drag:hover { background: #2da44e }
+#main { flex: 1; overflow: auto; padding: 16px 20px }
+#top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px }
+#top .left { display: flex; align-items: flex-start; gap: 8px } #top .right { display: flex; align-items: center; gap: 10px }
+.item { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 8px; transition: background .15s }
+.item:hover { background: #eceff3 }
+.item .num { color: #777; min-width: 20px }
+.item .name { flex: 1; display: flex; align-items: center; gap: 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
+.item .name img { width: 14px; height: 14px }
+.item .dots { visibility: hidden; border: none; background: transparent; padding: 0 6px; font-size: 18px; line-height: 1 }
+.item:hover .dots { visibility: visible }
+.rename-input { flex: 1; padding: 3px 6px !important }
+#newBox input { margin-bottom: 4px }
+#menu { position: fixed; z-index: 10; min-width: 140px; background: #fff; border: 1px solid #d9dde3; border-radius: 10px; padding: 4px; box-shadow: 0 6px 20px rgba(0,0,0,.15) }
+#menu div { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 6px; cursor: pointer }
+#menu div:hover { background: #eef1f5 } #menu img { width: 14px; height: 14px } #mDel { color: #d1242f }
+#modal { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.35) }
+.dialog { background: #fff; border-radius: 12px; padding: 20px 24px; min-width: 280px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,.25) }
+.dialog button { min-width: 70px; margin: 0 4px }
+.row { display: flex; align-items: center; margin: 3px 0 }
+.row .label { width: 160px; flex: none; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding-right: 6px }
+.box { width: 20px; height: 20px; margin-right: 3px; flex: none; border: 1px solid #d0d5dd; border-radius: 5px; background: #fff; font-size: 10px; text-align: center; line-height: 18px; color: #777 }
+.box.done { background: #2da44e; border-color: #2da44e }
+.box.today { outline: 2px solid #222; outline-offset: 1px }
+</style></head>
+<body class="app">
+
+<div id="side">
+  <div><button id="hideBtn" class="icon-btn" title="Hide sidebar (Ctrl+B)"><img src="/static/icons8-show-sidepanel-32.png" alt="Hide sidebar"></button></div>
+  <button id="newBtn" class="new"><img src="/static/icons8-add-32.png" width="16" alt=""> New</button>
+  <div id="newBox" hidden><input id="newName" placeholder="List name, press Enter" autocomplete="off"></div>
+  <div id="lists"></div>
+  <button id="doneBtn"><img src="/static/icons8-done-24.png" width="16" alt=""> Done</button>
+  <small id="saved"></small>
+</div>
+<div id="drag"></div>
+
+<div id="main">
+  <div id="top">
+    <div class="left">
+      <button id="showBtn" class="icon-btn" title="Show sidebar (Ctrl+B)" hidden><img src="/static/icons8-show-sidepanel-32.png" alt="Show sidebar"></button>
+      <div>
+        <div class="brand"><img src="/static/icons8-to-do-list-24.png" alt=""><h1>DailyPoint</h1></div>
+        <h3 class="tagline">Small steps every day lead to big achievements tomorrow.</h3>
+      </div>
+    </div>
+    <div class="right">
+      <button id="logoutBtn" class="icon-btn" title="Log out"><img src="/static/icons8-log-out-50.png" alt="Log out"></button>
+      <a href="/profile" title="Profile"><img id="avatar" class="avatar" src="/static/icons8-profile-50.png" alt="Profile"></a>
+    </div>
+  </div>
+  <p><button id="prev">&lt;</button> <b id="monthLabel"></b> <button id="next">&gt;</button></p>
+  <div id="grid"></div>
+</div>
+
+<div id="menu" hidden>
+  <div id="mPin"><img src="/static/icons8-pin-24.png" alt=""><span id="mPinText">Pin</span></div>
+  <div id="mRename">Rename</div>
+  <div id="mDel">Delete</div>
+</div>
+<div id="modal" hidden><div class="dialog"><p id="modalMsg"></p><button id="modalYes">Yes</button><button id="modalNo">No</button></div></div>
+
+<script src="/static/common.js"></script>
+<script>
+let state, checked = new Set(), view = new Date(), menuList = null, renamingId = null;
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+async function load(initChecks) {
+  state = await api(`/api/data?year=${view.getFullYear()}&month=${view.getMonth() + 1}`);
+  if (initChecks) checked = new Set(state.todayDone);
+  $("avatar").src = state.gender === "female" ? "/static/icons8-profile-50-female.png" : "/static/icons8-profile-50.png";
+  renderLists(); renderGrid();
+}
+
+// ---------- confirm popup (Yes / No) ----------
+function askConfirm(msg) {
+  return new Promise((resolve) => {
+    $("modalMsg").textContent = msg; $("modal").hidden = false;
+    const end = (v) => { $("modal").hidden = true; resolve(v); };
+    $("modalYes").onclick = () => end(true); $("modalNo").onclick = () => end(false);
+    $("modal").onclick = (e) => { if (e.target === $("modal")) end(false); };
+  });
+}
+
+// ---------- left list ----------
+function renderLists() {
+  $("lists").innerHTML = "";
+  state.lists.forEach((l, i) => {
+    const row = document.createElement("div"); row.className = "item";
+    const num = document.createElement("span"); num.className = "num"; num.textContent = (i + 1) + ".";
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = checked.has(l.id);
+    cb.onchange = () => cb.checked ? checked.add(l.id) : checked.delete(l.id);
+    row.append(num, cb);
+
+    if (renamingId === l.id) {                       // inline rename, like chat history
+      const inp = document.createElement("input"); inp.className = "rename-input"; inp.value = l.name;
+      let finished = false;
+      const finish = async (save) => {
+        if (finished) return; finished = true; renamingId = null;
+        const n = inp.value.trim();
+        if (save && n && n !== l.name) await api("/api/list/rename", { id: l.id, name: n });
+        load();
+      };
+      inp.onkeydown = (e) => { if (e.key === "Enter") finish(true); if (e.key === "Escape") finish(false); };
+      inp.onblur = () => finish(true);
+      row.appendChild(inp); $("lists").appendChild(row);
+      setTimeout(() => { inp.focus(); inp.select(); }, 0);
+      return;
+    }
+
+    const name = document.createElement("span"); name.className = "name";
+    if (l.pinned) { const p = document.createElement("img"); p.src = "/static/icons8-pin-24.png"; name.appendChild(p); }
+    name.appendChild(document.createTextNode(l.name));
+    const dots = document.createElement("button"); dots.className = "dots"; dots.textContent = "⋯";
+    dots.onclick = (e) => {
+      e.stopPropagation(); menuList = l;
+      $("mPinText").textContent = l.pinned ? "Unpin" : "Pin";
+      const r = dots.getBoundingClientRect(); $("menu").style.left = r.left + "px"; $("menu").style.top = r.bottom + 4 + "px";
+      $("menu").hidden = false;
+    };
+    row.append(name, dots); $("lists").appendChild(row);
+  });
+}
+
+// ---------- right green boxes ----------
+function renderGrid() {
+  $("monthLabel").textContent = MONTHS[state.month - 1] + " " + state.year;
+  const g = $("grid"); g.innerHTML = "";
+  const head = document.createElement("div"); head.className = "row";
+  head.innerHTML = '<div class="label"></div>';
+  for (let d = 1; d <= state.daysInMonth; d++) { const b = document.createElement("div"); b.className = "box"; b.style.border = "none"; b.textContent = d; head.appendChild(b); }
+  g.appendChild(head);
+  state.lists.forEach((l, i) => {
+    const row = document.createElement("div"); row.className = "row";
+    const label = document.createElement("div"); label.className = "label"; label.textContent = (i + 1) + ". " + l.name;
+    row.appendChild(label);
+    for (let d = 1; d <= state.daysInMonth; d++) {
+      const b = document.createElement("div"); b.className = "box";
+      const iso = `${state.year}-${String(state.month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      if (l.days.includes(d)) b.classList.add("done");
+      if (iso === state.today) b.classList.add("today");
+      b.title = iso; row.appendChild(b);
+    }
+    g.appendChild(row);
+  });
+}
+
+// ---------- New: type name, Enter adds it and hides the box ----------
+$("newBtn").onclick = () => { $("newBox").hidden = !$("newBox").hidden; if (!$("newBox").hidden) $("newName").focus(); };
+$("newName").onkeydown = async (e) => {
+  if (e.key === "Enter" && $("newName").value.trim()) {
+    await api("/api/list/add", { name: $("newName").value });
+    $("newName").value = ""; $("newBox").hidden = true; load();
+  }
+  if (e.key === "Escape") { $("newName").value = ""; $("newBox").hidden = true; }
+};
+
+// ---------- Done ----------
+$("doneBtn").onclick = async () => {
+  await api("/api/done", { ids: [...checked] });
+  view = new Date(); await load(true);
+  $("saved").textContent = "Saved for " + state.today;
+};
+
+// ---------- three-dot menu ----------
+document.addEventListener("click", () => $("menu").hidden = true);
+$("mPin").onclick = async () => { await api("/api/list/pin", { id: menuList.id }); load(); };
+$("mRename").onclick = () => { renamingId = menuList.id; renderLists(); };
+$("mDel").onclick = async () => {
+  const l = menuList;
+  if (await askConfirm(`Delete "${l.name}"?`)) { await api("/api/list/delete", { id: l.id }); checked.delete(l.id); load(); }
+};
+
+// ---------- months, logout ----------
+$("prev").onclick = () => { view = new Date(view.getFullYear(), view.getMonth() - 1, 1); load(); };
+$("next").onclick = () => { view = new Date(view.getFullYear(), view.getMonth() + 1, 1); load(); };
+$("logoutBtn").onclick = async () => {
+  if (await askConfirm("Do you want to log out?")) { await api("/api/logout", {}); location = "/login"; }
+};
+
+// ---------- sidebar: hide button, Ctrl+B, drag to resize ----------
+function toggleSide() {
+  const hide = !$("side").hidden;
+  $("side").hidden = hide; $("drag").hidden = hide; $("showBtn").hidden = !hide;
+}
+$("hideBtn").onclick = toggleSide; $("showBtn").onclick = toggleSide;
+let dragging = false;
+$("drag").onmousedown = () => dragging = true;
+document.onmouseup = () => dragging = false;
+document.onmousemove = (e) => { if (dragging) $("side").style.width = Math.min(500, Math.max(180, e.clientX)) + "px"; };
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") { e.preventDefault(); toggleSide(); }
+});
+
+load(true);
+</script></body></html>
